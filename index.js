@@ -6,5 +6,5 @@
  * @Description: In User Settings Edit
  * @FilePath: \pageForm\index.js
  */ 
-import base from './_base.vue'
+import base from './src/vue-calendar-component/index.vue'
 export default base
