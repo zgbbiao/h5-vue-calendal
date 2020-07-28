@@ -61,10 +61,24 @@
         </tbody>
         </table>
 
-        <div class="calendar-years" :class="{'show':yearsShow}">
-            <span v-for="y in years" @click.stop="selectYear(y)" :class="{'active':y==year}">{{y}}</span>
-        </div>
- 
+        <!-- <div class="calendar-years mescroll-touch" :class="{'show':yearsShow}">
+            <div class="mescroll-touch">
+                <span v-for="y in years" @click.stop="selectYear(y)" :class="{'active':y==year, 'mescroll-touch': true}">{{y}}</span>
+            </div>
+        </div> -->
+        <van-popup v-model="yearsShow" round position="bottom"
+                :close-on-click-overlay="false">
+            <van-picker
+                title="切换年份"
+                show-toolbar
+                class="mescroll-touch"
+                :columns="years"
+                :default-index="yearDefaultIndex"
+                @confirm="onYearConfirm"
+                @cancel="onYearCancel"
+                />
+        </van-popup>
+
     </div>
 </template>
 
@@ -76,6 +90,7 @@ let lowerMoths = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月'
 let UpMoths = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月']
 let engMoths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 let defaultMoths = window.navigator.language.toLowerCase() == "zh-cn"? UpMoths:engMoths
+import { Toast } from 'vant';
 export default {
     props: {
         // 多选模式
@@ -180,12 +195,12 @@ export default {
             }
         },
         // 是否点击选择星期
-        selectWeek: {
+        isSelectWeek: {
             type: Boolean,
             default: false
         },
         // 是否点击选择月份
-        selectMonth: {
+        isSelectMonth: {
             type: Boolean,
             default: false
         },
@@ -193,6 +208,14 @@ export default {
         yearCount: {
             type: Number,
             default: 50
+        },
+        minDate: {
+            type: [String, Date],
+            default: ''
+        },
+        maxDate: {
+            type: [String, Date],
+            default: ''
         }
     },
     data() {
@@ -239,7 +262,8 @@ export default {
             },
             rangeBegin:[],
             rangeEnd:[],
-            datamonths: defaultMoths
+            datamonths: defaultMoths,
+            yearDefaultIndex: 0
         }
     },
     watch:{
@@ -323,38 +347,6 @@ export default {
                         k++;
                     }
                 }
-                // if (this.selectWeek) { // 范围
-                // const month = this.month + 1
-                //     // console.log("日期范围",this.getLunarInfo(this.year,this.month+1,i))
-                //     let options = Object.assign(
-                //         {day: i},
-                //         this.getLunarInfo(this.year,month,i),
-                //         this.getEvents(this.year,month,i),
-                //      )
-                //     if (this.rangeBegin.length > 0) {
-                //         let beginTime = Number(new Date(this.rangeBegin[0], this.rangeBegin[1], this.rangeBegin[2]))
-                //         let endTime = Number(new Date(this.rangeEnd[0], this.rangeEnd[1], this.rangeEnd[2]))
-                //         let stepTime = Number(new Date(this.year, month, i))
-                //         if (beginTime <= stepTime && endTime >= stepTime) {
-                //             options.selected = true
-                //         }
-                //     }
-                //     if (this.begin.length>0) {
-                //         let beginTime = Number(new Date(parseInt(this.begin[0]),parseInt(this.begin[1]) - 1,parseInt(this.begin[2])))
-                //         if (beginTime > Number(new Date(this.year, month, i))) options.disabled = true
-                //     }
-                //     if (this.end.length>0){
-                //         let endTime = Number(new Date(parseInt(this.end[0]),parseInt(this.end[1]) - 1,parseInt(this.end[2])))
-                //         if (endTime <  Number(new Date(this.year, month, i))) options.disabled = true
-                //     }
-                //     if (this.disabled.length>0){
-                //         if (this.disabled.filter(v => {return this.year === v[0] && month === v[1]-1 && i === v[2] }).length>0) {
-                //             options.disabled = true
-                //         }
-                //     }
-                //     temp[line].push(options)
-
-                // } else 
                 if (this.range) { // 范围
                     // console.log("日期范围",this.getLunarInfo(this.year,this.month+1,i))
                     let options = Object.assign(
@@ -389,6 +381,7 @@ export default {
                             options.disabled = true
                         }
                     }
+                    options = Object.assign({}, options, this.setMaxMixDate(this.year, this.month, i) || {})
                     temp[line].push(options)
                 }else if(this.multi){//多选
                     let options
@@ -411,7 +404,8 @@ export default {
                             }
                         }
                     }
-                    
+                    options = Object.assign({}, options, this.setMaxMixDate(this.year, this.month, i) || {})
+                    console.log(options)
                     temp[line].push(options)
                 } else { // 单选
                      // console.log(this.lunar(this.year,this.month,i));
@@ -422,22 +416,25 @@ export default {
                     // 匹配上次选中的日期
                     if (parseInt(seletSplit[0]) == this.year && parseInt(seletSplit[1]) - 1 == this.month && parseInt(seletSplit[2]) == i) {
                         // console.log("匹配上次选中的日期",lunarYear,lunarMonth,lunarValue,lunarInfo)
-                        temp[line].push(Object.assign(
+                        let options = Object.assign(
                             {day: i,selected: true},
                             this.getLunarInfo(this.year,this.month+1,i),
                             this.getEvents(this.year,this.month+1,i),
-                        ))
+                        )
+                        options = Object.assign({}, options, this.setMaxMixDate(this.year, this.month, i) || {})
+                        temp[line].push(options)
                         this.today = [line, temp[line].length - 1]
                     }
                      // 没有默认值的时候显示选中今天日期
                     else if (chkY == this.year && chkM == this.month && i == this.day && this.value == "") {
-
-                        // console.log("今天",lunarYear,lunarMonth,lunarValue,lunarInfo)
-                        temp[line].push(Object.assign(
+                        let options = Object.assign(
                             {day: i,selected: true},
                             this.getLunarInfo(this.year,this.month+1,i),
                             this.getEvents(this.year,this.month+1,i),
-                        ))
+                        )
+                        options = Object.assign({}, options, this.setMaxMixDate(this.year, this.month, i) || {})
+                        // console.log("今天",lunarYear,lunarMonth,lunarValue,lunarInfo)
+                        temp[line].push(options)
                         this.today = [line, temp[line].length - 1]
                     }else{
                         // 普通日期
@@ -460,6 +457,7 @@ export default {
                                 options.disabled = true
                             }
                         }
+                        options = Object.assign({}, options, this.setMaxMixDate(this.year, this.month, i) || {})
                         temp[line].push(options)
                     }
                 }
@@ -502,6 +500,33 @@ export default {
             }
             this.days = temp
         },
+        // 设置最大和最小日期
+        setMaxMixDate(year, month, day) {
+            if (!year) {
+                return {
+                }
+            }
+            const d = moment(`${year}/${month+1}/${day}`).format('YYYY/MM/DD')
+            const dtime = new Date(d).getTime()
+            if (this.minDate) {
+                const minDate = new Date(this.minDate).getTime()
+                if (dtime <= minDate) {
+                    return {
+                        disabled: true
+                    }
+                }
+            }
+            if (this.maxDate) {
+                const maxDate = new Date(this.maxDate).getTime()
+                if (dtime >= maxDate) {
+                    return {
+                        disabled: true
+                    }
+                }
+            }
+            return {}
+        },
+        // 计算限制时间范围
         computedPrevYear(){
             let value=this.year
             if(this.month-1<0){
@@ -606,7 +631,7 @@ export default {
         select(k1, k2, e) {
             if (e != undefined) e.stopPropagation()
                 // 日期范围
-             if (this.selectWeek){
+             if (this.isSelectWeek){
                     const weekObj = getCurWeekDays(
                         moment(new Date(`${this.year}/${this.month+1}/${this.days[k1][k2].day}`)).format('YYYY-MM-DD')
                     );
@@ -634,7 +659,7 @@ export default {
                     // console.log("选中日期",begin,end)
                     this.$emit('select',begin,end)
                 this.render(this.year, this.month)
-            } else if (this.selectMonth) {
+            } else if (this.isSelectMonth) {
                     const month = getCurMonth(new Date(`${this.year}/${this.month + 1}/${this.days[k1][k2].day}`));
                     this.rangeBegin = month.startDate.split('-').map(item => item - 0)
                     this.rangeBegin[1] = this.rangeBegin[1] - 1
@@ -736,6 +761,13 @@ export default {
             for(let i=~~curYear-this.yearCount;i<~~curYear+this.yearCount;i++){
                 this.years.push(i)
             }
+            if (this.year) {
+                this.yearDefaultIndex = this.years.findIndex(item => item === this.year)
+            } else {
+                this.yearDefaultIndex = this.years.findIndex(item => item === curYear)
+            }
+            // year
+            // this.yearDefaultIndex
         },
         selectYear(value){
             this.yearsShow=false
@@ -779,7 +811,7 @@ export default {
         },
         myInstall () {
             var self = this;
-            if (touch) {
+            if (window.touch) {
                 touch.on('.calendaytbody', 'swipeleft', function(ev){
                     self.onMyNext(ev)
                 });
@@ -789,7 +821,16 @@ export default {
             } else {
                 console.log("<script src='https://cdn.bootcss.com/touchjs/0.2.14/touch.min.js'>")
             }
-        }
+        },
+        onYearCancel() {
+            this.yearsShow = false
+        },
+        onYearChange(value) {
+            this.selectYear(value)
+        },
+        onYearConfirm(value) {
+            this.selectYear(value)
+        },
     }
 }
 
@@ -862,7 +903,7 @@ export default {
     .calendar table {
         clear: both;
         width: 100%;
-        margin-bottom:10px;
+        /* margin-bottom:10px; */
         border-collapse: collapse;
         color: #444444;
     }
@@ -903,11 +944,11 @@ export default {
         border-radius:20px;
     }
     .calendar td:not(.selected) span:not(.red):hover{
-        background:#f3f8fa;
-        color:#444;
+        /* background:#f3f8fa; */
+        /* color:#444; */
     }
     .calendar td:not(.selected) span.red:hover{
-        background:#f9efef;
+        /* background:#f9efef; */
     }
 
     .calendar td:not(.disabled) span.red{
@@ -938,8 +979,8 @@ export default {
         color: #fff;
     }
     .calendar td.selected span.red:hover{
-        background-color: #ea6151;
-        color: #fff;
+        /* background-color: #ea6151; */
+        /* color: #fff; */
     }
     .calendar thead td {
         text-transform: uppercase;
@@ -979,7 +1020,7 @@ export default {
         justify-content: center;
         align-items: center;
         flex-wrap:wrap;
-        overflow: auto;
+        overflow-y: scroll;
         transition:all .5s cubic-bezier(0.075, 0.82, 0.165, 1);
         opacity: 0;
         pointer-events: none;
@@ -990,7 +1031,7 @@ export default {
         pointer-events: auto;
         transform: translateY(0px);
     }
-    .calendar-years>span{
+    .calendar-years span{
         margin:1px 5px;
         display: inline-block;
         width:60px;
@@ -1000,7 +1041,7 @@ export default {
         border:1px solid #fbfbfb;
         color:#999;
     }
-    .calendar-years>span.active{
+    .calendar-years span.active{
         border:1px solid #5e7a88;
         background-color: #5e7a88;
         color:#fff;
